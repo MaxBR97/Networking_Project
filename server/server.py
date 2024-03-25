@@ -2,6 +2,7 @@ import socket
 import threading
 import time
 import random
+from queue import Queue
 
 # Constants
 UDP_PORT = 13117
@@ -18,28 +19,86 @@ SynchronizeRound= True
 def set_finished_recruiting(bool):
     global finishedRecruiting
     finishedRecruiting = bool
-#restart variables to finish the game appropriately, 
-#and be ready for another game
-def finishGame():
-    return 0
 
-#   return true or false, if client_socket is still participating,
-#   meanning he didnt answer wrong so far.
+
+# Assuming your PARTICIPANTS list structure: [client_socket, address, still in game? (boolean)]
+ANSWER_QUEUE = Queue()  # To store answers in the order they're received
+
+# Use a lock for thread-safe operations on shared resources
+PARTICIPANTS_LOCK = threading.Lock()
+GAME_PHASE = False
+ROUND_SYNC = threading.Event()
+
+
+
+def finishGame():
+    """
+    Restart variables to finish the game appropriately and be ready for another game.
+    Resets the game state, clears participants, and prepares for a new game.
+    """
+    global PARTICIPANTS, GAME_PHASE, WAITING_TIME_LEFT, CURRENT_QUESTION, ROUND_SYNC
+    with PARTICIPANTS_LOCK:
+        PARTICIPANTS.clear()  # Clear the participants list
+    GAME_PHASE = False
+    WAITING_TIME_LEFT = 10  # Reset waiting time
+    CURRENT_QUESTION = 0  # Reset to the first question
+    ROUND_SYNC.clear()  # Clear the round synchronization event
+    # Reset any other game state variables here
+
 def isStillParticipating(client_socket):
-    return 0
-#Calculate round results, expell players who answered wrong.
+    """
+    Return true if client_socket is still participating, meaning they didn't answer wrong so far.
+    """
+    with PARTICIPANTS_LOCK:
+        for participant in PARTICIPANTS:
+            if participant[0] == client_socket:
+                return participant[2]  # The boolean flag for participation
+    return False
+
 def endRound():
-    return 0
-# register the answer for a question given by the given client in a queue,
-# which hold the order in which the answers were registered
-def registerAnswer(client_socket, question ,answer):
-    return 0
+    """
+    Calculate round results, expel players who answered wrong.
+    """
+    while not ANSWER_QUEUE.empty():
+        client_socket, answer = ANSWER_QUEUE.get()
+        correct_answer = CURRENT_QUESTION[1]
+        if (answer == 'y' and not correct_answer) or (answer == 'n' and correct_answer):
+            print(f"{participant[0]} is incorrect.")
+            # Mark the participant as not participating anymore
+            with PARTICIPANTS_LOCK:
+                for participant in PARTICIPANTS:
+                    if participant[0] == client_socket:
+                        participant[2] = False  # Update participation status
+                        participant[0].close()
+                        break
+        else:
+            print(f"{participant[0]} is correct!")
+    ROUND_SYNC.clear()  # Prepare for the next round
+
+def registerAnswer(client_socket, answer):
+    """
+    Register the answer for a question given by the client in a queue,
+    which holds the order in which the answers were registered.
+    """
+    ANSWER_QUEUE.put((client_socket, answer))
 
 def pick_random_question():
-    return random.choice(QUESTIONS)
-#If there is a winner , return him (ip address or something),
-# If no winner, return None
+    """
+    Pick and return a random question from the list of questions.
+    """
+    global CURRENT_QUESTION
+    CURRENT_QUESTION = random.choice(QUESTIONS)
+    return CURRENT_QUESTION
+
 def getWinner():
+    """
+    If there is a winner, return them (IP address or something identifiable),
+    if no winner, return None.
+    """
+    with PARTICIPANTS_LOCK:
+        active_participants = [p for p in PARTICIPANTS if p[2]]
+        if len(active_participants) == 1:
+            return active_participants[0][1]  # Return the address of the remaining participant
     return None
 def broadcast_udp():
     """
