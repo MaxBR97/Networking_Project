@@ -7,9 +7,13 @@ def main():
         tcp_socket = network_utils.establish_tcp_connection(server_ip)
         if tcp_socket:
             try:
-                # Send player's name or any initial handshake required
-                tcp_socket.sendall("PlayerName\n".encode())
-                # Handle game interaction here
+                while True:
+                    user_input = input("Enter something: ")
+                    if user_input !=0 or user_input !=0:
+                        print("insert valid input")
+                    else:
+                        data_to_send = user_input.encode('utf-8')
+                        tcp_socket.send(data_to_send)
             finally:
                 tcp_socket.close()
     else:

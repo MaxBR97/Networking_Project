@@ -6,7 +6,7 @@ def bot_behavior(tcp_socket):
     Defines the bot's behavior during the game.
     """
     # Example bot behavior: send a random answer
-    answer = random.choice(['True', 'False'])
+    answer = random.choice(['y', 'n'])
     print(f"Bot automatically answering: {answer}")
     tcp_socket.sendall(answer.encode())
 
