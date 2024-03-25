@@ -14,6 +14,7 @@ HOSTNAME = "172.20.10.10"
 QUESTIONS = [["Question 1: the answer is Y", True], ["Question 2: the answer is N", False]]
 CURRENT_QUESTION = 0
 finishedRecruiting = False
+SynchronizeRound= True 
 def set_finished_recruiting(bool):
     global finishedRecruiting
     finishedRecruiting = bool
