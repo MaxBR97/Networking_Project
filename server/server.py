@@ -16,6 +16,7 @@ QUESTIONS = [["Question 1: the answer is Y", True], ["Question 2: the answer is 
 CURRENT_QUESTION = 0
 finishedRecruiting = False
 SynchronizeRound= True 
+gamePhase = False
 def set_finished_recruiting(bool):
     global finishedRecruiting
     finishedRecruiting = bool
@@ -108,6 +109,7 @@ def broadcast_udp():
         udp_socket.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
         udp_socket.bind((HOSTNAME, UDP_PORT))
         global WAITING_TIME_LEFT
+        global finishedRecruiting
         message = f"""Server here! Connect to me for trivia fun!
                     HOSTNAME: {HOSTNAME}
                     TCP PORT: {TCP_PORT}"""
@@ -127,7 +129,10 @@ def handle_client(client_socket, address):
     """
     Handle a connected client.
     """
-    
+    global gamePhase
+    global SynchronizeRound
+    global isStillParticipating    
+    global CURRENT_QUESTION
     try:
         print(f"Connection from {address} has been established.")
         client_socket.send(bytes("Welcome to the trivia game!", "utf-8"))
@@ -156,6 +161,9 @@ def handle_client(client_socket, address):
         client_socket.close()
 
 def start_tcp_server():
+    global WAITING_TIME_LEFT
+    global finishedRecruiting
+    global PARTICIPANTS
     """
     Start the TCP server to accept client connections.
     """
@@ -172,6 +180,7 @@ def start_tcp_server():
             client_thread.start()
 
 if __name__ == "__main__":
+
     while True:
         udp_thread = threading.Thread(target=broadcast_udp)
         udp_thread.start()
