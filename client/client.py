@@ -8,8 +8,8 @@ def main():
         if tcp_socket:
             try:
                 while True:
-                    user_input = input("Enter something: ")
-                    if user_input !=0 or user_input !=1:
+                    user_input = input("true(y) or false (n): ")
+                    if user_input !='y' or user_input !='n':
                         print("insert valid input")
                     else:
                         data_to_send = user_input.encode('utf-8')
