@@ -11,7 +11,7 @@ def listen_for_udp_broadcast():
     Listen for UDP broadcasts from the server to discover game sessions.
     """
     with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as udp_socket:
-        udp_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        udp_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEPORT, 1)
         udp_socket.bind(('', SERVER_UDP_PORT))
         print("Listening for offer requests...")
         while True:
