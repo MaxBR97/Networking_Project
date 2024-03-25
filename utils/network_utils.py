@@ -16,7 +16,7 @@ def listen_for_udp_broadcast(bot_mode):
         # Allows the socket to be bound to an address that is already in use
         udp_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         # Further allows multiple instances of the application to receive UDP broadcasts on the same port      
-        udp_socket.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
+        udp_socket.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)  #There was a requirement to use SO_REUSEPORT, though it's used only when WIN!=32. so we used this SO_BROADCAST to fix it.
         udp_socket.bind(('', SERVER_UDP_PORT))
         print("Listening for offer requests...")
         while True:
