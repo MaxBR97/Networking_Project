@@ -1,6 +1,7 @@
 import socket
 import threading
 import time
+import random
 
 # Constants
 UDP_PORT = 13117
@@ -13,7 +14,9 @@ HOSTNAME = "172.20.10.10"
 QUESTIONS = [["Question 1: the answer is Y", True], ["Question 2: the answer is N", False]]
 CURRENT_QUESTION = 0
 finishedRecruiting = False
-
+def set_finished_recruiting(bool):
+    global finishedRecruiting
+    finishedRecruiting = bool
 def broadcast_udp():
     """
     Broadcast UDP offer messages to clients periodically.
@@ -94,7 +97,7 @@ if __name__ == "__main__":
         tcp_server_thread.start()
         udp_thread.join()
 
-        timer = threading.Timer(0.2, lambda: setattr(finishedRecruiting, True))
+        timer = threading.Timer(0.2, set_finished_recruiting,args=(True,))
         timer.start()
 
         tcp_server_thread.join()
