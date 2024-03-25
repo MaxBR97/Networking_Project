@@ -7,7 +7,7 @@ SERVER_UDP_PORT = 13117
 TCP_PORT = 12345
 BUFFER_SIZE = 1024
 
-def listen_for_udp_broadcast(bot_mode):
+def listen_for_udp_broadcast():
     """
     Listen for UDP broadcasts from the server to discover game sessions.
     Allows multiple instances on the same machine by setting SO_REUSEPORT.

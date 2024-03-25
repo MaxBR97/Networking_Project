@@ -7,7 +7,7 @@ from utils import network_utils
 
 
 def main():
-    server_ip = network_utils.listen_for_udp_broadcast(0)
+    server_ip = network_utils.listen_for_udp_broadcast()
     if server_ip:
         tcp_socket = network_utils.establish_tcp_connection(server_ip)
         if tcp_socket:
