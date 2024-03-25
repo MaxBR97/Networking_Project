@@ -18,6 +18,29 @@ SynchronizeRound= True
 def set_finished_recruiting(bool):
     global finishedRecruiting
     finishedRecruiting = bool
+#restart variables to finish the game appropriately, 
+#and be ready for another game
+def finishGame():
+    return 0
+
+#   return true or false, if client_socket is still participating,
+#   meanning he didnt answer wrong so far.
+def isStillParticipating(client_socket):
+    return 0
+#Calculate round results, expell players who answered wrong.
+def endRound():
+    return 0
+# register the answer for a question given by the given client in a queue,
+# which hold the order in which the answers were registered
+def registerAnswer(client_socket, question ,answer):
+    return 0
+
+def pick_random_question():
+    return random.choice(QUESTIONS)
+#If there is a winner , return him (ip address or something),
+# If no winner, return None
+def getWinner():
+    return None
 def broadcast_udp():
     """
     Broadcast UDP offer messages to clients periodically.
@@ -117,31 +140,9 @@ if __name__ == "__main__":
     
     
 
-#restart variables to finish the game appropriately, 
-#and be ready for another game
-def finishGame():
-    return 0
 
-#   return true or false, if client_socket is still participating,
-#   meanning he didnt answer wrong so far.
-def isStillParticipating(client_socket):
-    return 0
 
-#If there is a winner , return him (ip address or something),
-# If no winner, return None
-def getWinner():
-    return None
 
-#Calculate round results, expell players who answered wrong.
-def endRound():
-    return 0
-# register the answer for a question given by the given client in a queue,
-# which hold the order in which the answers were registered
-def registerAnswer(client_socket, question ,answer):
-    return 0
-
-def pick_random_question():
-    return random.choice(QUESTIONS)
 
 # Example usage:
 random_question = pick_random_question(QUESTIONS)
