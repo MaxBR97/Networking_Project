@@ -17,7 +17,7 @@ def main():
                     received_text = received_data.decode('utf-8')
                     print(received_text)
                     user_input = input("true(y) or false (n): ")
-                    if user_input !='y' or user_input !='n':
+                    if user_input !='y' and user_input !='n':
                         print("insert valid input")
                     else:
                         data_to_send = user_input.encode('utf-8')
