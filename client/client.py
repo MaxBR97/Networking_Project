@@ -8,6 +8,9 @@ def main():
         if tcp_socket:
             try:
                 while True:
+                    received_data = tcp_socket.recv(1024)  # Adjust buffer size as needed
+                    received_text = received_data.decode('utf-8')
+                    print(received_text)
                     user_input = input("true(y) or false (n): ")
                     if user_input !='y' or user_input !='n':
                         print("insert valid input")
