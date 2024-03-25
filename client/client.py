@@ -17,6 +17,8 @@ def main():
                     else:
                         data_to_send = user_input.encode('utf-8')
                         tcp_socket.send(data_to_send)
+            except Exception as e:
+                print(e)
             finally:
                 tcp_socket.close()
     else:
