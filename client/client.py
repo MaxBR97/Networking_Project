@@ -9,7 +9,7 @@ def main():
             try:
                 while True:
                     user_input = input("Enter something: ")
-                    if user_input !=0 or user_input !=0:
+                    if user_input !=0 or user_input !=1:
                         print("insert valid input")
                     else:
                         data_to_send = user_input.encode('utf-8')
