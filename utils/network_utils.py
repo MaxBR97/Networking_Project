@@ -9,8 +9,12 @@ BUFFER_SIZE = 1024
 def listen_for_udp_broadcast():
     """
     Listen for UDP broadcasts from the server to discover game sessions.
+    Allows multiple instances on the same machine by setting SO_REUSEPORT.
     """
     with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as udp_socket:
+        # Allows the socket to be bound to an address that is already in use
+        udp_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        # Further allows multiple instances of the application to receive UDP broadcasts on the same port
         udp_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEPORT, 1)
         udp_socket.bind(('', SERVER_UDP_PORT))
         print("Listening for offer requests...")
