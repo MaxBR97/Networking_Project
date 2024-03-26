@@ -148,13 +148,13 @@ class Server():
                     self.game_started_condition.wait()
             while self.game_phase:
                 if self.isStillParticipating(team_name):
-                    startTime = time.thread_time_ns()
+                    #startTime = time.thread_time_ns()
                     try:
                         with self.synchronize_round:
                             self.synchronize_round.wait()
                         print(self.current_question)
                         client_socket.send(self.current_question[0].encode("utf-8"))
-                        client_socket.settimeout(10 - time.thread_time_ns + startTime)
+                        #client_socket.settimeout(10 - time.thread_time_ns + startTime)
                         response = client_socket.recv(1024).decode("utf-8")
                         self.registerAnswer(team_name, response)
                         print(f"Response from {address}: {response}")
