@@ -1,0 +1,22 @@
+questions = [
+    ["The NBA was founded in 1946.", True],
+    ["Michael Jordan won 5 MVP awards during his career.", False],
+    ["The Golden State Warriors won the NBA championship in 2018.", True],
+    ["LeBron James has never won an NBA scoring title.", False],
+    ["The Miami Heat have won 5 NBA championships.", False],
+    ["The NBA has only had one lockout in its history.", False],
+    ["Kobe Bryant scored 81 points in a single game against the Toronto Raptors.", True],
+    ["The San Antonio Spurs have won the most NBA championships.", False],
+    ["Wilt Chamberlain holds the record for most points scored in a single NBA game.", True],
+    ["The Chicago Bulls won 6 NBA championships in the 1990s.", True],
+    ["The Boston Celtics have won the most NBA championships.", True],
+    ["The Detroit Pistons won back-to-back NBA championships in 1989 and 1990.", True],
+    ["Shaquille O'Neal won the NBA MVP award in 2001.", True],
+    ["The New York Knicks have won the most NBA championships of any team based in New York.", False],
+    ["Tim Duncan won all of his NBA championships with the San Antonio Spurs.", True],
+    ["Magic Johnson played his entire NBA career with the Los Angeles Lakers.", True],
+    ["Larry Bird won 3 consecutive NBA MVP awards in the 1980s.", False],
+    ["Kareem Abdul-Jabbar is the NBA's all-time leading scorer.", True],
+    ["The NBA's Defensive Player of the Year award was first given out in 1982.", True],
+    ["The Houston Rockets won back-to-back NBA championships in 1994 and 1995.", True]
+]

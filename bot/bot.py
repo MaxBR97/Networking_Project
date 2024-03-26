@@ -17,12 +17,14 @@ def bot_behavior(tcp_socket: socket):
     print(f'bot recieved {received_text}')
     answer = random.choice(['y', 'n'])
     print(f"Bot automatically answering: {answer}")
-    tcp_socket.send(answer.encode())
+    tcp_socket.send(answer.encode('utf-8'))
 
 def main():
     server_ip = network_utils.listen_for_udp_broadcast()
     if server_ip:
         tcp_socket = network_utils.establish_tcp_connection(server_ip)
+        name="BOT:Boty"
+        tcp_socket.send(name.encode('utf-8'))
         if tcp_socket:
             try:
                 while True:
