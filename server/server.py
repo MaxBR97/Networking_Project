@@ -41,11 +41,14 @@ class Server():
         Resets the game state, clears participants, and prepares for a new game.
         """
         self.participations_lock.acquire()
-        self.participants.clear()
+        self.participants=[]
         self.participations_lock.release()
         self.game_phase = False
         self.waiting_time_left = 10  # Reset waiting time
         self.current_question = 0  # Reset to the first question
+        self.finished_recruiting=False
+        with self.synchronize_round:
+            self.synchronize_round.notify_all()
 
     def isStillParticipating(self, team_name:str):
         """
@@ -54,10 +57,11 @@ class Server():
         self.participations_lock.acquire()
         for participant in self.participants:
             if participant[1]==team_name:
-                self.participations_lock.release()
+                self.participations_lock.release()     
+                print(participant[3])    
                 return participant[3]  # The boolean flag for participation
         self.participations_lock.release()
-        print(f"isStillParticipating return {False}")
+        print(False)
         return False
 
     def endRound(self):
@@ -75,6 +79,7 @@ class Server():
                 for participant in self.participants:
                     if participant[1]==team_name:
                         participant[3] = False  # Update participation status
+                        participant[0].send(bytes("you are out of the game, you have lost", "utf-8"))
                         participant[0].close()
                         break
                 self.participations_lock.release()
@@ -105,6 +110,8 @@ class Server():
         """
         self.participations_lock.acquire()
         winner_name= self.participants[0][1]  # Return the address of the remaining participant
+        self.participants[0][0].send(bytes("you won!", "utf-8"))
+        self.participants[0][0].close()
         self.participations_lock.release()
         return winner_name
     def broadcast_udp(self):
@@ -147,11 +154,11 @@ class Server():
                 while not self.game_phase:
                     self.game_started_condition.wait()
             while self.game_phase:
+                with self.synchronize_round:
+                            self.synchronize_round.wait()
                 if self.isStillParticipating(team_name):
                     #startTime = time.thread_time_ns()
-                    try:
-                        with self.synchronize_round:
-                            self.synchronize_round.wait()
+                    try:                     
                         print(self.current_question)
                         client_socket.send(self.current_question[0].encode("utf-8"))
                         #client_socket.settimeout(10 - time.thread_time_ns + startTime)
@@ -163,15 +170,16 @@ class Server():
                         break  # Exit the loop if a timeout occurs
                     except Exception as e:
                         print(f"removed {team_name}")
+                        break
                 else:
-                    client_socket.send(bytes("you are out of the game, you have lost", "utf-8"))
                     break
                 
             # Here, you would add the logic to interact with the client during the game.
         except Exception as e:
             print(f"Error handling client {address}: {e}")
         finally:
-            client_socket.close()
+            if client_socket:
+                client_socket.close()
 
     def start_tcp_server(self):
         """
@@ -186,7 +194,7 @@ class Server():
                 accepting_thread.start()
                 while not self.finished_recruiting:
                     with self.finished_recruiting_condition:
-                        time.sleep(8)
+                        self.finished_recruiting_condition.wait()
                 tcp_socket.close()          
         except Exception as e:
             print(e)
@@ -239,7 +247,6 @@ if __name__ == "__main__":
                 server.synchronize_round.notify_all()
             time.sleep(10)
             server.endRound()
-
         winner=server.getWinner()
         print(f"winner is: {winner}")
         server.finishGame()

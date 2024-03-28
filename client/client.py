@@ -1,5 +1,6 @@
 import sys
 import os
+import time
 current_dir = os.path.dirname(__file__)
 parent_dir = os.path.abspath(os.path.join(current_dir, os.pardir))
 sys.path.append(parent_dir)
@@ -20,11 +21,15 @@ def main():
                 received_data = tcp_socket.recv(1024)  # Adjust buffer size as needed
                 received_text = received_data.decode('utf-8')
                 print(received_text)
-                if tcp_socket:
-                    
+                if tcp_socket:    
                         while True:
                             received_data = tcp_socket.recv(1024)  # Adjust buffer size as needed
                             received_text = received_data.decode('utf-8')
+                            received_text = received_text.strip()
+                            if received_text=='you are out of the game, you have lost' or received_text=='you won!':
+                                print(received_text)
+                                time.sleep(2)
+                                break
                             print(received_text)
                             user_input = input("true(y) or false (n): ")
                             if user_input !='y' and user_input !='n':
@@ -35,7 +40,8 @@ def main():
             except Exception as e:
                     print(e)
             finally:
-                    tcp_socket.close()
+                    if tcp_socket:
+                        tcp_socket.close()
         else:
             print("No server offers detected.")
 
