@@ -91,7 +91,6 @@ def establish_tcp_connection(server_ip,dest_port):
     tcp_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     try:
         tcp_socket.connect((server_ip, dest_port))
-        print("Connected to the server.")
         return tcp_socket
     except Exception as e:
         print(f"Could not connect to server at {server_ip}: {e}")

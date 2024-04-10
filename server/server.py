@@ -45,6 +45,13 @@ class Server():
         self.corrected_questions={}
         self.total_questions_lock=threading.Lock()
         self.corrected_questions_lock=threading.Lock()
+    
+    def notifySynchronizeRound(self):
+        self.synchronize_round.notify_all()
+
+    def notifyGameStartedCondition(self):
+        self.game_started_condition.notify_all()
+
     def finishGame(self):
         """
         Restart variables to finish the game appropriately and be ready for another game.
@@ -145,7 +152,16 @@ class Server():
                     print(f"Broadcast message sent! (time left: {self.waiting_time_left})")
                     time.sleep(BROADCAST_INTERVAL)
                     self.waiting_time_left  = self.waiting_time_left - 1
-                    keepWaiting = False if self.waiting_time_left <= 0 else True
+                   
+                    if ((self.waiting_time_left <= 0) & ((len(self.participants)) <= 1)):
+                        keepWaiting = True
+                        print(f"Not Enough people are recruited ({len(self.participants)} players)")
+                        #self.participants=[]
+                        self.waiting_time_left = 10
+                    elif self.waiting_time_left <= 0:
+                        keepWaiting = False
+                    else:
+                        keepWaiting = True
                 except Exception as e:
                     print(f"Error broadcasting: {e}")
             self.finished_recruiting = True
@@ -164,13 +180,15 @@ class Server():
             self.participants.append([client_socket,team_name, address, True])
             self.participations_lock.release()
             #TODO: send "Welcome to the trivia game!" only after round starts.
+            while not self.game_phase:
+                self.game_started_condition.acquire()
+                self.game_started_condition.wait()
+                self.game_started_condition.release()
             client_socket.send(bytes("Welcome to the trivia game!", "utf-8"))
-            with self.game_started_condition:
-                while not self.game_phase:
-                    self.game_started_condition.wait()
             while self.game_phase:
-                with self.synchronize_round:
-                            self.synchronize_round.wait()
+                self.synchronize_round.acquire()
+                self.synchronize_round.wait()
+                self.synchronize_round.release()
                 if self.isStillParticipating(team_name):
                     try:                     
                         print(self.current_question)
@@ -257,26 +275,29 @@ class Server():
 if __name__ == "__main__":
     server=Server()
     while True:
-        
         udp_thread = threading.Thread(target=server.broadcast_udp)
         udp_thread.start()
 
         tcp_server_thread = threading.Thread(target=server.start_tcp_server)
         tcp_server_thread.start()
         udp_thread.join()
-
         timer = threading.Timer(0.2, server.set_finished_recruiting,args=(True,))
         timer.start()
         tcp_server_thread.join()
+
         server.game_phase = True
         # time.sleep(105)
         #game phase
         while not server.isFinished():
             server.pick_random_question()
-            with server.game_started_condition:
-                server.game_started_condition.notify_all()
-            with server.synchronize_round:
-                server.synchronize_round.notify_all()
+            
+            server.game_started_condition.acquire()
+            server.game_started_condition.notify_all()
+            server.game_started_condition.release()
+            time.sleep(0.2)
+            server.synchronize_round.acquire()
+            server.synchronize_round.notify_all()
+            server.synchronize_round.release()
             time.sleep(10)
             server.endRound()
         winner=server.getWinner()

@@ -16,12 +16,16 @@ names_array = ["Roee", "Maxim", "Idan", "Yossi", "Gal"]
 def handle_user_input(tcp_socket):
     
     while True:
-        user_input = input("true (y) or false (n): ")
-        if user_input in ['y', 'n']:
-            data_to_send = user_input.encode('utf-8')
-            tcp_socket.send(data_to_send)
-        else:
-            print("Please enter a valid input ('y' or 'n').")
+        try:
+            user_input = input("true (y) or false (n): ")
+            if user_input in ['y', 'n']:
+                data_to_send = user_input.encode('utf-8')
+                tcp_socket.send(data_to_send)
+            else:
+                print("Please enter a valid input ('y' or 'n').")
+        except:
+            print("Disconnected")
+            break
 
 def main():
     while True:
@@ -32,7 +36,7 @@ def main():
                 # Choose from names_array randomly
                 user_name = random.choice(names_array)
                 tcp_socket.send(f"{user_name}\n".encode('utf-8'))
-
+                print(f"My team name: {user_name}")
                 # Double threading: one for listening to the socket, another for user input
                 threading.Thread(target=handle_user_input, args=(tcp_socket,), daemon=True).start()
 
