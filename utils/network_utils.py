@@ -47,9 +47,15 @@ def listen_for_udp_broadcast():
             ready_sockets, _, _ = select.select([udp_socket], [], [], 5)
             if ready_sockets:
                 message, server_address = udp_socket.recvfrom(BUFFER_SIZE)
-                print(f"Received offer from {server_address}.\n Message: {message}")
+                print(f"Received offer from {server_address}.\n Message: {bytes_to_string(message)}")
                 return server_address[0], extract_tcp_port(message)
 import re
+
+def bytes_to_string(message):
+    if isinstance(message, bytes):
+        message = message.decode('utf-8')
+    return message
+
 
 def extract_tcp_port(string_with_port):
     # Ensure string_with_port is decoded to a string

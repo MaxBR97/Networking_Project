@@ -15,7 +15,6 @@ names_array = ["Roee", "Maxim", "Idan", "Yossi", "Gal"]
 
 def handle_user_input(tcp_socket):
     
-    my_name = input("Please")
     while True:
         user_input = input("true (y) or false (n): ")
         if user_input in ['y', 'n']:
