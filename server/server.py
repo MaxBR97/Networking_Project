@@ -102,6 +102,29 @@ class Server():
                 print(f"{team_name} is correct!")
         self.queue_lock.release()
 
+    def endRound(self):
+        """
+        Calculate round results, expel players who answered wrong.
+        """
+        with self.queue_lock:
+            while not self.answer_queue.empty():
+                team_name, answer = self.answer_queue.get()
+                correct_answer = self.current_question[1]
+                if (answer == 'y' and not correct_answer) or (answer == 'n' and correct_answer):
+                    # Update to use dictionary
+                    self.answers_dict[team_name] = False
+                    # Mark the participant as not participating anymore
+                    with self.participations_lock:
+                        for participant in self.participants:
+                            if participant[1] == team_name:
+                                participant[3] = False  # Update participation status
+                                participant[0].send(bytes("you are out of the game, you have lost", "utf-8"))
+                                participant[0].close()
+                                break
+                else:
+                    self.answers_dict[team_name] = True
+                    print(f"{team_name} is correct!")
+
     def registerAnswer(self,client_socket, answer):
         #TODO: change this function to insert to answers_dict instead of queue
         """
@@ -162,51 +185,85 @@ class Server():
             with self.finished_recruiting_condition:
                 self.finished_recruiting_condition.notify_all()
 
-    def handle_client(self,client_socket:socket.socket, address:str):
+    def handle_client(self, client_socket: socket.socket, address: str):
         """
-        Handle a connected client.
+        Handle a connected client: manage their participation in the game, receive answers,
+        and communicate game state changes.
         """
         try:
             print(f"Connection from {address} has been established.")
-            client_socket.send(bytes("please send your team name", "utf-8"))
-            team_name = client_socket.recv(1024).decode("utf-8")
-            self.participations_lock.acquire()
-            self.participants.append([client_socket,team_name, address, True])
-            self.participations_lock.release()
-            #TODO: send "Welcome to the trivia game!" only after round starts.
+            client_socket.send(bytes("Please send your team name.", "utf-8"))
+            team_name = client_socket.recv(1024).decode("utf-8").strip()
+            
+            # Register the participant
+            with self.participations_lock:
+                self.participants.append([client_socket, team_name, address, True])
+                self.answers_dict[team_name] = None  # Initialize participant's answer state
+            
+            # Notify participant of game start
             client_socket.send(bytes("Welcome to the trivia game!", "utf-8"))
+            
+            # Wait for the game to start
             with self.game_started_condition:
                 while not self.game_phase:
                     self.game_started_condition.wait()
+
+            # Game has started, handle questions and answers
             while self.game_phase:
                 with self.synchronize_round:
-                            self.synchronize_round.wait()
-                if self.isStillParticipating(team_name):
-                    try:                     
-                        print(self.current_question)
-                        client_socket.send(self.current_question[0].encode("utf-8"))
-                        #TODO: uncomment line below and check if works
-                        #client_socket.settimeout(10)
-                        response = client_socket.recv(1024).decode("utf-8")
-                        #TODO: check answer by thread and not insert to queue and insert true to answers_dict if correct else insert false
-                        #TODO: Bonus print "{team_name} is correct!" or incorrect in colors
-                        self.registerAnswer(team_name, response)
-                        print(f"Response from {address}: {response}")
-                    except socket.timeout:
-                        print(f"Timeout occurred while waiting for response from {address}")
-                        break  # Exit the loop if a timeout occurs
-                    except Exception as e:
-                        print(f"removed {team_name}")
-                        break
-                else:
+                    self.synchronize_round.wait()  # Synchronize with the game round
+
+                if not self.isStillParticipating(team_name):
+                    break  # If not participating, break the loop
+
+                try:
+                    # Send current question
+                    question_text = self.current_question[0]  # Get the question text
+                    client_socket.send(question_text.encode("utf-8"))
+                    
+                    # Set a timeout for client response
+                    client_socket.settimeout(10)  # Set timeout to 10 seconds
+
+                    # Receive response
+                    response = client_socket.recv(1024).decode("utf-8").strip()
+                    correct_answer = self.current_question[1]  # Get the correct answer
+
+                    # Check and register the answer
+                    if ((response == 'y' and correct_answer) or (response == 'n' and not correct_answer)):
+                        self.answers_dict[team_name] = True  # Correct answer
+                        client_socket.send(bytes("Correct answer!", "utf-8"))
+                    else:
+                        self.answers_dict[team_name] = False  # Incorrect answer
+                        client_socket.send(bytes("Incorrect answer! You are out of the game.", "utf-8"))
+                        with self.participations_lock:
+                            for participant in self.participants:
+                                if participant[1] == team_name:
+                                    participant[3] = False  # Mark as no longer participating
+                                    break
+
+                    print(f"Response from {address}: {response} - {'Correct' if self.answers_dict[team_name] else 'Incorrect'}")
+
+                except socket.timeout:
+                    print(f"Timeout occurred while waiting for response from {address}")
+                    with self.participations_lock:
+                        for participant in self.participants:
+                            if participant[1] == team_name:
+                                participant[3] = False  # Mark as no longer participating
+                                break
+                    client_socket.send(bytes("No response received in time. You are out of the game.", "utf-8"))
+                    break  # Exit the loop if a timeout occurs
+
+                except Exception as e:
+                    print(f"Error during the game phase with {address}: {e}")
                     break
-                
-            # Here, you would add the logic to interact with the client during the game.
+
         except Exception as e:
             print(f"Error handling client {address}: {e}")
+
         finally:
             if client_socket:
                 client_socket.close()
+                print(f"Connection with {address} has been closed.")
 
     def start_tcp_server(self):
         """
