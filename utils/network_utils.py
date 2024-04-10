@@ -4,7 +4,6 @@ import select
 
 # Constants
 SERVER_UDP_PORT = 13117
-TCP_PORT = 12345
 BUFFER_SIZE = 1024
 
 def get_local_ip():
@@ -40,15 +39,17 @@ def listen_for_udp_broadcast():
                 print(f"Received offer from {server_address}, attempting to connect...")
                 return server_address[0]
 
-def establish_tcp_connection(server_ip):
+def establish_tcp_connection(server_ip,port):
     """
     Establish a TCP connection to the server using the provided IP.
     """
     tcp_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     try:
-        tcp_socket.connect((server_ip, TCP_PORT))
+        tcp_socket.connect((server_ip, port))
         print("Connected to the server.")
         return tcp_socket
     except Exception as e:
         print(f"Could not connect to server at {server_ip}: {e}")
         return None
+    
+

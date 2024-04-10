@@ -14,7 +14,7 @@ from utils.network_utils import get_local_ip
 # Constants
 UDP_PORT = 13117
 # TODO: make those dynamic and remove Constants maybe use find_available_port function from above
-TCP_PORT = 12345
+TCP_PORT = find_available_port()
 HOSTNAME = get_local_ip()
 BROADCAST_INTERVAL = 1  # Seconds between broadcasts
 MAX_CONNECTIONS = 8  # Maximum number of simultaneous client connections
@@ -250,19 +250,6 @@ class Server():
         self.participants= [p for p in self.participants if p[3]]
         self.participations_lock.release()
 
-    def find_available_port(self):
-        base_port = 8000
-        max_port = 9000
-        self.hostname = socket.gethostname()
-        for port in range(base_port, max_port):
-            try:
-                s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-                s.bind(('localhost', port))
-                s.close()
-                return port
-            except OSError:
-                pass
-        return None  # If no port is available within the range
             
 if __name__ == "__main__":
     server=Server()
