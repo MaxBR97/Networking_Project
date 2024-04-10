@@ -8,10 +8,14 @@ parent_dir = os.path.abspath(os.path.join(current_dir, os.pardir))
 sys.path.append(parent_dir)
 from utils import network_utils
 
+global lock
+
 # Fill with names
 names_array = ["Roee", "Maxim", "Idan", "Yossi", "Gal"]
 
 def handle_user_input(tcp_socket):
+    
+    my_name = input("Please")
     while True:
         user_input = input("true (y) or false (n): ")
         if user_input in ['y', 'n']:
@@ -22,10 +26,10 @@ def handle_user_input(tcp_socket):
 
 def main():
     while True:
-        server_ip = network_utils.listen_for_udp_broadcast()
+        server_ip, destination_tcp_port = network_utils.listen_for_udp_broadcast()
         if server_ip:
             try:
-                tcp_socket = network_utils.establish_tcp_connection(server_ip)
+                tcp_socket = network_utils.establish_tcp_connection(server_ip, destination_tcp_port)
                 # Choose from names_array randomly
                 user_name = random.choice(names_array)
                 tcp_socket.send(f"{user_name}\n".encode('utf-8'))

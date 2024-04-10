@@ -47,16 +47,44 @@ def listen_for_udp_broadcast():
             ready_sockets, _, _ = select.select([udp_socket], [], [], 5)
             if ready_sockets:
                 message, server_address = udp_socket.recvfrom(BUFFER_SIZE)
-                print(f"Received offer from {server_address}, attempting to connect...")
-                return server_address[0]
+                print(f"Received offer from {server_address}.\n Message: {message}")
+                return server_address[0], extract_tcp_port(message)
+import re
 
-def establish_tcp_connection(server_ip,port):
+def extract_tcp_port(string_with_port):
+    # Ensure string_with_port is decoded to a string
+    if isinstance(string_with_port, bytes):
+        string_with_port = string_with_port.decode('utf-8')
+
+    # Define a regular expression pattern to match the substring "TCP PORT: {TCP_PORT}"
+    pattern = r"TCP PORT: (\d+)"
+
+    # Use re.search to find the first match of the pattern in the string
+    match = re.search(pattern, string_with_port)
+
+    if match:
+        # Extract the port number from the matched group
+        port_str = match.group(1)
+
+        # Convert the port number string to an integer
+        try:
+            port_number = int(port_str)
+            return port_number
+        except ValueError:
+            print("Error: Invalid port number format")
+            return None
+    else:
+        print("Error: Port number not found in the string")
+        return None
+
+
+def establish_tcp_connection(server_ip,dest_port):
     """
     Establish a TCP connection to the server using the provided IP.
     """
     tcp_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     try:
-        tcp_socket.connect((server_ip, port))
+        tcp_socket.connect((server_ip, dest_port))
         print("Connected to the server.")
         return tcp_socket
     except Exception as e:
