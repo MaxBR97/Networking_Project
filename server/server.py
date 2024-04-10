@@ -162,29 +162,26 @@ class Server():
         with socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP) as udp_socket:
             udp_socket.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
             udp_socket.bind((HOSTNAME, UDP_PORT))
-
+            
             message = f"Server here! Connect to me for trivia fun! HOSTNAME: {HOSTNAME} TCP PORT: {TCP_PORT}"
             # Validate packet size as per the #TODO: Ensuring the packet does not exceed typical UDP safe limits
-            # 508 bytes is a typical safe limit for UDP packets to avoid fragmentation
-            if len(message.encode()) > 508:
+            if len(message.encode()) > 508:  # 508 bytes is a typical safe limit for UDP packets to avoid fragmentation
                 print("Error: UDP message size exceeds the standard limit of 508 bytes.")
                 return
 
             print(f"Broadcasting on UDP port {UDP_PORT} and TCP port {TCP_PORT}")
-
+            
             keepWaiting = True
             while keepWaiting:
                 try:
                     udp_socket.sendto(message.encode(), ('<broadcast>', UDP_PORT))
-                    print(
-                        f"Broadcast message sent! (time left: {self.waiting_time_left})")
+                    print(f"Broadcast message sent! (time left: {self.waiting_time_left})")
                     time.sleep(BROADCAST_INTERVAL)
                     self.waiting_time_left -= 1
                     if self.waiting_time_left <= 0:
                         if len(self.participants) == 0:
                             print("No participants have joined, restarting timer.")
-                            # Reset the timer to allow more time for participants to join
-                            self.waiting_time_left = 10
+                            self.waiting_time_left = 10  # Reset the timer to allow more time for participants to join
                         else:
                             keepWaiting = False
                 except Exception as e:
@@ -194,6 +191,7 @@ class Server():
             self.finished_recruiting = True
             with self.finished_recruiting_condition:
                 self.finished_recruiting_condition.notify_all()
+
 
     def handle_client(self, client_socket, address):
         """
@@ -225,32 +223,27 @@ class Server():
                     client_socket.send(question_text.encode('utf-8'))
 
                     # Set a timeout for client response
-                    # Wait for up to 10 seconds for a response
-                    client_socket.settimeout(10)
+                    client_socket.settimeout(10)  # Wait for up to 10 seconds for a response
 
                     try:
-                        response = client_socket.recv(
-                            1024).decode("utf-8").strip()
+                        response = client_socket.recv(1024).decode("utf-8").strip()
                         print(f"{team_name} answered: {response}")
 
                         # Register the answer using the revised approach
                         self.registerAnswer(team_name, response)
 
                     except socket.timeout:
-                        print(
-                            f"Timeout occurred while waiting for response from {team_name}")
+                        print(f"Timeout occurred while waiting for response from {team_name}")
                         # Mark the participant as not participating if they time out
                         self.participations_lock.acquire()
                         for participant in self.participants:
                             if participant[1] == team_name:
-                                # Set their game participation to False
-                                participant[3] = False
+                                participant[3] = False  # Set their game participation to False
                                 break
                         self.participations_lock.release()
 
                     except Exception as e:
-                        print(
-                            f"Error receiving response from {team_name}: {e}")
+                        print(f"Error receiving response from {team_name}: {e}")
 
                 else:
                     # If not participating, skip to the next participant
@@ -261,6 +254,7 @@ class Server():
         finally:
             client_socket.close()
             print(f"Closed connection to {team_name}@{address}")
+
 
     def start_tcp_server(self):
         """
@@ -309,13 +303,6 @@ class Server():
         self.participants = [p for p in self.participants if p[3]]
         self.participations_lock.release()
 
-<<<<<<< HEAD
-
-=======
-    
-        
-            
->>>>>>> 438e86a47808d1e25ff87b455cdad29346191eec
 if __name__ == "__main__":
     server = Server()
     while True:
