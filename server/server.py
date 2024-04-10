@@ -133,7 +133,7 @@ class Server():
         with socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP) as udp_socket:
             udp_socket.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
             udp_socket.bind((HOSTNAME, UDP_PORT))
-            #TODO: validate packet size
+            #TODO: validate packet size as in work instructions
             message = f"""Server here! Connect to me for trivia fun!
                         HOSTNAME: {HOSTNAME}
                         TCP PORT: {TCP_PORT}"""
