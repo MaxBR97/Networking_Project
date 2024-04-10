@@ -7,10 +7,12 @@ from question import questions
 
 # Constants
 UDP_PORT = 13117
+# TODO: make those dynamic and remove Constants maybe use find_available_port function from above
 TCP_PORT = 12345
+HOSTNAME = "10.100.102.5"
 BROADCAST_INTERVAL = 1  # Seconds between broadcasts
 MAX_CONNECTIONS = 8  # Maximum number of simultaneous client connections
-HOSTNAME = "10.100.102.5"
+
 
 
 
@@ -35,6 +37,13 @@ class Server():
         self.participations_lock = threading.Lock()
         self.participants = [] # element: [client_socket, address, still in game? (boolean)]
         self.queue_lock=threading.Lock()
+        self.answers_dict={}
+        self.answers_lock=threading.Lock()
+        #TODO: Bonus add to those so we can have statictics and print/print and send those at the end of every game
+        self.total_questions={}
+        self.corrected_questions={}
+        self.total_questions_lock=threading.Lock()
+        self.corrected_questions_lock=threading.Lock()
     def finishGame(self):
         """
         Restart variables to finish the game appropriately and be ready for another game.
@@ -68,6 +77,8 @@ class Server():
         """
         Calculate round results, expel players who answered wrong.
         """
+        #TODO: change this function to check true/false in answers dict as answers will be checked in handle_client function
+        #TODO: if all false dont do anything else change participant[3] = False only
         self.queue_lock.acquire()
         while not self.answer_queue.empty():
             team_name, answer = self.answer_queue.get()
@@ -88,6 +99,7 @@ class Server():
         self.queue_lock.release()
 
     def registerAnswer(self,client_socket, answer):
+        #TODO: change this function to insert to answers_dict instead of queue
         """
         Register the answer for a question given by the client in a queue,
         which holds the order in which the answers were registered.
@@ -121,6 +133,7 @@ class Server():
         with socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP) as udp_socket:
             udp_socket.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
             udp_socket.bind((HOSTNAME, UDP_PORT))
+            #TODO: validate packet size
             message = f"""Server here! Connect to me for trivia fun!
                         HOSTNAME: {HOSTNAME}
                         TCP PORT: {TCP_PORT}"""
@@ -149,6 +162,7 @@ class Server():
             self.participations_lock.acquire()
             self.participants.append([client_socket,team_name, address, True])
             self.participations_lock.release()
+            #TODO: send "Welcome to the trivia game!" only after round starts.
             client_socket.send(bytes("Welcome to the trivia game!", "utf-8"))
             with self.game_started_condition:
                 while not self.game_phase:
@@ -157,12 +171,14 @@ class Server():
                 with self.synchronize_round:
                             self.synchronize_round.wait()
                 if self.isStillParticipating(team_name):
-                    #startTime = time.thread_time_ns()
                     try:                     
                         print(self.current_question)
                         client_socket.send(self.current_question[0].encode("utf-8"))
-                        #client_socket.settimeout(10 - time.thread_time_ns + startTime)
+                        #TODO: uncomment line below and check if works
+                        #client_socket.settimeout(10)
                         response = client_socket.recv(1024).decode("utf-8")
+                        #TODO: check answer by thread and not insert to queue and insert true to answers_dict if correct else insert false
+                        #TODO: Bonus print "{team_name} is correct!" or incorrect in colors
                         self.registerAnswer(team_name, response)
                         print(f"Response from {address}: {response}")
                     except socket.timeout:
@@ -210,18 +226,33 @@ class Server():
         while not self.finished_recruiting:
             try:
                 client_socket, address = tcp_socket.accept()
+                #TODO: make sure line below works so it finish recruite only when no one registered in 10 seconds
+                self.waiting_time_left=10
                 client_thread = threading.Thread(target=self.handle_client, args=(client_socket, address))
                 client_thread.start()
             except:
                 print("finished accepting clients" )
         
     def get_active_paarticipants(self):
+        #TODO: remove function and usage as all players has to stay connected
         self.participations_lock.acquire()
         self.participants= [p for p in self.participants if p[3]]
         self.participations_lock.release()
 
-
-        
+    def find_available_port(self):
+        base_port = 8000
+        max_port = 9000
+        self.hostname = socket.gethostname()
+        for port in range(base_port, max_port):
+            try:
+                s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                s.bind(('localhost', port))
+                s.close()
+                return port
+            except OSError:
+                pass
+        return None  # If no port is available within the range
+            
 if __name__ == "__main__":
     server=Server()
     while True:
