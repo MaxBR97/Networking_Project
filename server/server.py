@@ -22,8 +22,6 @@ MAX_CONNECTIONS = 8  # Maximum number of simultaneous client connections
 
 
 
-
-
 # Use a lock for thread-safe operations on shared resources
 
 
@@ -150,7 +148,14 @@ class Server():
                     print(f"Broadcast message sent! (time left: {self.waiting_time_left})")
                     time.sleep(BROADCAST_INTERVAL)
                     self.waiting_time_left  = self.waiting_time_left - 1
-                    keepWaiting = False if self.waiting_time_left <= 0 else True
+                    if self.waiting_time_left <= 0 & len(self.participants) == 0:
+                        print(f"No participants have joined, restarting timer.")
+                        keepWaiting = True
+                        self.waiting_time_left = 10
+                    elif self.waiting_time_left <= 0:
+                        keepWaiting = False
+                    else:
+                        keepWaiting = True
                 except Exception as e:
                     print(f"Error broadcasting: {e}")
             self.finished_recruiting = True

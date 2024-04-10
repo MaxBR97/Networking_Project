@@ -7,6 +7,20 @@ SERVER_UDP_PORT = 13117
 TCP_PORT = 12345
 BUFFER_SIZE = 1024
 
+def get_local_ip():
+    # Create a socket object
+    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    try:
+        # Connect to any address; this will return the local IP address
+        s.connect(('10.255.255.255', 1))
+        local_ip = s.getsockname()[0]
+    except Exception as e:
+        print("Error:", e)
+        local_ip = None
+    finally:
+        s.close()
+    return local_ip
+
 def listen_for_udp_broadcast():
     """
     Listen for UDP broadcasts from the server to discover game sessions.
