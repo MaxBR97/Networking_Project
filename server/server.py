@@ -193,6 +193,7 @@ class Server():
                 self.finished_recruiting_condition.notify_all()
 
 
+
     def handle_client(self, client_socket, address):
         """
         Handle a connected client by managing their participation in the trivia game.
