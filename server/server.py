@@ -14,7 +14,6 @@ import utils.network_utils
 
 # Constants
 UDP_PORT = 13117
-# TODO: make those dynamic and remove Constants maybe use find_available_port function from above
 TCP_PORT = utils.network_utils.find_available_port()
 HOSTNAME = utils.network_utils.get_local_ip()
 BROADCAST_INTERVAL = 1  # Seconds between broadcasts
