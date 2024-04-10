@@ -106,15 +106,15 @@ class Server():
                 print(f"{team_name} is correct!")
         self.queue_lock.release()
 
-    def registerAnswer(self,client_socket, answer):
-        #TODO: change this function to insert to answers_dict instead of queue
+    def registerAnswer(self, team_name, answer):
         """
-        Register the answer for a question given by the client in a queue,
-        which holds the order in which the answers were registered.
+        Register the answer for a question given by the client,
+        and store it in a dictionary to maintain the current round's answers.
         """
-        self.queue_lock.acquire()
-        self.answer_queue.put((client_socket, answer))
-        self.queue_lock.release()
+        self.answers_lock.acquire()
+        self.answers_dict[team_name] = answer
+        self.answers_lock.release()
+
 
     def pick_random_question(self):
         """
@@ -134,6 +134,7 @@ class Server():
         self.participants[0][0].close()
         self.participations_lock.release()
         return winner_name
+    
     def broadcast_udp(self):
         """
         Broadcast UDP offer messages to clients periodically.
@@ -167,6 +168,42 @@ class Server():
             self.finished_recruiting = True
             with self.finished_recruiting_condition:
                 self.finished_recruiting_condition.notify_all()
+            
+            '''
+            for Idan:
+                    def broadcast_udp(self):
+                        """
+                        Broadcast UDP offer messages to clients periodically with specific packet format.
+                        """
+                        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP) as udp_socket:
+                            udp_socket.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
+                            udp_socket.bind((HOSTNAME, UDP_PORT))
+
+                            # Prepare the message according to the specified packet format
+                            magic_cookie = 0xabcddcba
+                            message_type = 0x2
+                            server_name = "YourCreativeServerNameHere"
+                            server_name_padded = server_name.ljust(32, '\0')  # Pad the server name to be 32 characters
+                            server_port = TCP_PORT
+
+                            # Create the packet
+                            packet = struct.pack('!I B 32s H', magic_cookie, message_type, server_name_padded.encode('utf-16')[2:], server_port)
+
+                            keepWaiting = True
+                            while keepWaiting:
+                                try:
+                                    udp_socket.sendto(packet, ('<broadcast>', UDP_PORT))
+                                    print(f"Broadcast message sent! (time left: {self.waiting_time_left})")
+                                    time.sleep(BROADCAST_INTERVAL)
+                                    self.waiting_time_left = self.waiting_time_left - 1
+                                    keepWaiting = False if self.waiting_time_left <= 0 else True
+                                except Exception as e:
+                                    print(f"Error broadcasting: {e}")
+                            self.finished_recruiting = True
+                            with self.finished_recruiting_condition:
+                                self.finished_recruiting_condition.notify_all()
+
+            '''
 
     def handle_client(self,client_socket:socket.socket, address:str):
         """
@@ -215,6 +252,67 @@ class Server():
         finally:
             if client_socket:
                 client_socket.close()
+
+        '''
+        for Idan :
+                def handle_client(self, client_socket: socket.socket, address: str):
+                    """
+                    Handle a connected client.
+                    """
+                    try:
+                        print(f"Connection from {address} has been established.")
+                        client_socket.send(bytes("Please send your team name", "utf-8"))
+                        team_name = client_socket.recv(1024).decode("utf-8").strip()
+                        self.participations_lock.acquire()
+                        self.participants.append([client_socket, team_name, address, True])
+                        self.participations_lock.release()
+
+                        # Wait until the game phase starts
+                        with self.game_started_condition:
+                            while not self.game_phase:
+                                self.game_started_condition.wait()
+                            client_socket.send(bytes("Welcome to the trivia game!", "utf-8"))
+
+                        while self.game_phase:
+                            with self.synchronize_round:
+                                self.synchronize_round.wait()
+
+                            if self.isStillParticipating(team_name):
+                                try:
+                                    print(self.current_question)
+                                    client_socket.send(self.current_question[0].encode("utf-8"))
+                                    client_socket.settimeout(10)  # Set timeout for client response
+
+                                    response = client_socket.recv(1024).decode("utf-8").strip()
+                                    correct_answer = self.current_question[1] == response
+                                    self.answers_lock.acquire()
+                                    self.answers_dict[team_name] = correct_answer
+                                    self.answers_lock.release()
+
+                                    if correct_answer:
+                                        msg = f"{team_name} is correct!"
+                                        print(f"\033[92m{msg}\033[0m")  # Green text for correct answer
+                                    else:
+                                        msg = f"{team_name} is incorrect."
+                                        print(f"\033[91m{msg}\033[0m")  # Red text for incorrect answer
+
+                                    print(f"Response from {address}: {response}")
+                                except socket.timeout:
+                                    print(f"Timeout occurred while waiting for response from {address}")
+                                    break  # Exit the loop if a timeout occurs
+                                except Exception as e:
+                                    print(f"Error during the game with {team_name}: {e}")
+                                    break
+                            else:
+                                break
+
+                    except Exception as e:
+                        print(f"Error handling client {address}: {e}")
+                    finally:
+                        if client_socket:
+                            client_socket.close()
+
+        '''
 
     def start_tcp_server(self):
         """
