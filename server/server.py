@@ -9,13 +9,13 @@ from question import questions
 current_dir = os.path.dirname(__file__)
 parent_dir = os.path.abspath(os.path.join(current_dir, os.pardir))
 sys.path.append(parent_dir)
-from utils.network_utils import get_local_ip
+import utils.network_utils 
 
 # Constants
 UDP_PORT = 13117
 # TODO: make those dynamic and remove Constants maybe use find_available_port function from above
-TCP_PORT = find_available_port()
-HOSTNAME = get_local_ip()
+TCP_PORT = utils.network_utils.find_available_port()
+HOSTNAME = utils.network_utils.get_local_ip()
 BROADCAST_INTERVAL = 1  # Seconds between broadcasts
 MAX_CONNECTIONS = 8  # Maximum number of simultaneous client connections
 
@@ -250,6 +250,8 @@ class Server():
         self.participants= [p for p in self.participants if p[3]]
         self.participations_lock.release()
 
+    
+        
             
 if __name__ == "__main__":
     server=Server()

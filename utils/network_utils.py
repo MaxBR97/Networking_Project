@@ -6,6 +6,17 @@ import select
 SERVER_UDP_PORT = 13117
 BUFFER_SIZE = 1024
 
+def find_available_port(start_port=5000, end_port=65535):
+    for port in range(start_port, end_port + 1):
+        try:
+            # Try to create a socket on the given port
+            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+                s.bind(('localhost', port))
+            return port
+        except OSError:
+            continue  # Port is not available, try the next one
+    return None  # No available port found in the given range
+
 def get_local_ip():
     # Create a socket object
     s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
