@@ -76,31 +76,6 @@ class Server():
         print(False)
         return False
 
-    def endRound(self):
-        """
-        Calculate round results, expel players who answered wrong.
-        """
-        # TODO: change this function to check true/false in answers dict as answers will be checked in handle_client function
-        # TODO: if all false dont do anything else change participant[3] = False only
-        self.queue_lock.acquire()
-        while not self.answer_queue.empty():
-            team_name, answer = self.answer_queue.get()
-            correct_answer = self.current_question[1]
-            if (answer == 'y' and not correct_answer) or (answer == 'n' and correct_answer):
-                print(f"{team_name} is incorrect.")
-                # Mark the participant as not participating anymore
-                self.participations_lock.acquire()
-                for participant in self.participants:
-                    if participant[1] == team_name:
-                        participant[3] = False  # Update participation status
-                        participant[0].send(
-                            bytes("you are out of the game, you have lost", "utf-8"))
-                        participant[0].close()
-                        break
-                self.participations_lock.release()
-            else:
-                print(f"{team_name} is correct!")
-        self.queue_lock.release()
 
     def endRound(self):
         """
@@ -158,32 +133,37 @@ class Server():
     def broadcast_udp(self):
         """
         Broadcast UDP offer messages to clients periodically.
+        Dynamically adjust UDP and TCP ports and validate packet size.
         """
+        # Dynamically find available ports for UDP and TCP (Assuming find_available_port() is correctly implemented)
+        self.udp_port = self.find_available_port()
+        global TCP_PORT
+        TCP_PORT = self.find_available_port()
+
         with socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP) as udp_socket:
             udp_socket.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
-            udp_socket.bind((HOSTNAME, UDP_PORT))
+            udp_socket.bind((HOSTNAME, self.udp_port))  # Bind using the dynamically found UDP port
             
             message = f"Server here! Connect to me for trivia fun! HOSTNAME: {HOSTNAME} TCP PORT: {TCP_PORT}"
-            # Validate packet size as per the #TODO: Ensuring the packet does not exceed typical UDP safe limits
-            if len(message.encode()) > 508:  # 508 bytes is a typical safe limit for UDP packets to avoid fragmentation
-                print("Error: UDP message size exceeds the standard limit of 508 bytes.")
-                return
-
-            print(f"Broadcasting on UDP port {UDP_PORT} and TCP port {TCP_PORT}")
+            if len(message.encode('utf-8')) > 508:
+                print("Error: Broadcast message size exceeds the safe UDP packet size limit.")
+                return  # Exit if the message is too large to safely send
             
-            keepWaiting = True
-            while keepWaiting:
+            print(f"Broadcasting on UDP port {self.udp_port} and TCP port {TCP_PORT}")
+            
+            keepBroadcasting = True
+            while keepBroadcasting:
                 try:
-                    udp_socket.sendto(message.encode(), ('<broadcast>', UDP_PORT))
-                    print(f"Broadcast message sent! (time left: {self.waiting_time_left})")
+                    udp_socket.sendto(message.encode('utf-8'), ('<broadcast>', self.udp_port))
+                    print(f"Broadcast message sent! Time left: {self.waiting_time_left}s")
                     time.sleep(BROADCAST_INTERVAL)
                     self.waiting_time_left -= 1
                     if self.waiting_time_left <= 0:
                         if len(self.participants) == 0:
-                            print("No participants have joined, restarting timer.")
-                            self.waiting_time_left = 10  # Reset the timer to allow more time for participants to join
+                            print("No participants have joined, restarting broadcast.")
+                            self.waiting_time_left = 10  # Reset the timer if no participants have joined
                         else:
-                            keepWaiting = False
+                            keepBroadcasting = False
                 except Exception as e:
                     print(f"Error broadcasting: {e}")
                     break
@@ -191,6 +171,7 @@ class Server():
             self.finished_recruiting = True
             with self.finished_recruiting_condition:
                 self.finished_recruiting_condition.notify_all()
+
 
 
 
@@ -280,29 +261,62 @@ class Server():
         self.finished_recruiting = bool
 
     def isFinished(self):
-        self.get_active_paarticipants()
+        self.get_active_participants()
         self.participations_lock.acquire()
         answer = len(self.participants) == 1
         self.participations_lock.release()
         return answer
 
     def accept_participants(self, tcp_socket: socket.socket):
+        last_connection_time = time.time()
         while not self.finished_recruiting:
             try:
+                tcp_socket.settimeout(10)  # Set a timeout for accepting new connections
                 client_socket, address = tcp_socket.accept()
-                # TODO: make sure line below works so it finish recruite only when no one registered in 10 seconds
-                self.waiting_time_left = 10
-                client_thread = threading.Thread(
-                    target=self.handle_client, args=(client_socket, address))
+                last_connection_time = time.time()  # Reset last connection time on new connection
+                client_thread = threading.Thread(target=self.handle_client, args=(client_socket, address))
                 client_thread.start()
-            except:
-                print("finished accepting clients")
+            except socket.timeout:
+                if time.time() - last_connection_time >= 10:
+                    print("No new participants in the last 10 seconds, finishing recruitment.")
+                    break
+            except Exception as e:
+                print(f"Exception in accepting clients: {e}")
+                break
 
-    def get_active_paarticipants(self):
-        # TODO: remove function and usage as all players has to stay connected
+
+    def get_active_participants(self):
+        """
+        Update the participants list to only include those who are still active and connected.
+        """
+        active_participants = []
         self.participations_lock.acquire()
-        self.participants = [p for p in self.participants if p[3]]
-        self.participations_lock.release()
+        try:
+            for participant in self.participants:
+                client_socket, team_name, address, is_still_in_game = participant
+                if is_still_in_game:
+                    try:
+                        # Check if the socket is still connected by attempting a non-blocking, non-data-receiving call
+                        client_socket.setblocking(0)
+                        if client_socket.recv(1, socket.MSG_PEEK) == b'':
+                            is_still_in_game = False  # No data and no blocking means disconnected
+                    except BlockingIOError:
+                        # No data ready to be received; continue
+                        pass
+                    except ConnectionResetError:
+                        is_still_in_game = False  # Connection was reset, so mark as not in game
+                    finally:
+                        client_socket.setblocking(1)  # Restore blocking mode
+
+                if is_still_in_game:
+                    active_participants.append(participant)
+                else:
+                    client_socket.close()  # Close the socket if no longer active
+
+            self.participants = active_participants  # Update the main list with only active participants
+        finally:
+            self.participations_lock.release()
+
 
 if __name__ == "__main__":
     server = Server()
