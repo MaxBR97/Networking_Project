@@ -1,4 +1,5 @@
 import socket
+import struct
 import threading
 import os
 import sys
@@ -14,8 +15,6 @@ import utils.network_utils
 
 # Constants
 UDP_PORT = 13117
-TCP_PORT = utils.network_utils.find_available_port()
-HOSTNAME = utils.network_utils.get_local_ip()
 BROADCAST_INTERVAL = 1  # Seconds between broadcasts
 MAX_CONNECTIONS = 8  # Maximum number of simultaneous client connections
 
@@ -45,6 +44,9 @@ class Server():
         self.corrected_questions={}
         self.total_questions_lock=threading.Lock()
         self.corrected_questions_lock=threading.Lock()
+        self.tcp_server=utils.network_utils.find_available_port()
+        self.hostname=utils.network_utils.get_local_ip()
+        self.round_index=1
     
     def notifySynchronizeRound(self):
         self.synchronize_round.notify_all()
@@ -58,11 +60,18 @@ class Server():
         Resets the game state, clears participants, and prepares for a new game.
         """
         self.participations_lock.acquire()
+        for participant in self.participants:
+            participant[0].send(bytes(f"Game over! winner is {self.winner_name}", "utf-8"))
+            participant[0].close()
         self.participants=[]
         self.participations_lock.release()
+        self.answers_lock.acquire()
+        self.answers_dict={}
+        self.answers_lock.release()
         self.game_phase = False
         self.waiting_time_left = 10  # Reset waiting time
         self.current_question = 0  # Reset to the first question
+        self.round_index=1
         self.finished_recruiting=False
         with self.synchronize_round:
             self.synchronize_round.notify_all()
@@ -74,11 +83,9 @@ class Server():
         self.participations_lock.acquire()
         for participant in self.participants:
             if participant[1]==team_name:
-                self.participations_lock.release()     
-                print(participant[3])    
+                self.participations_lock.release()      
                 return participant[3]  # The boolean flag for participation
         self.participations_lock.release()
-        print(False)
         return False
 
     def endRound(self):
@@ -87,24 +94,22 @@ class Server():
         """
         #TODO: change this function to check true/false in answers dict as answers will be checked in handle_client function
         #TODO: if all false dont do anything else change participant[3] = False only
-        self.queue_lock.acquire()
-        while not self.answer_queue.empty():
-            team_name, answer = self.answer_queue.get()
-            correct_answer = self.current_question[1]
-            if (answer == 'y' and not correct_answer) or (answer == 'n' and correct_answer):
-                print(f"{team_name} is incorrect.")
-                # Mark the participant as not participating anymore
-                self.participations_lock.acquire()
-                for participant in self.participants:
-                    if participant[1]==team_name:
-                        participant[3] = False  # Update participation status
-                        participant[0].send(bytes("you are out of the game, you have lost", "utf-8"))
-                        participant[0].close()
-                        break
-                self.participations_lock.release()
-            else:
-                print(f"{team_name} is correct!")
-        self.queue_lock.release()
+        self.answers_lock.acquire()
+        self.participations_lock.acquire()
+        is_all_wrong=all(value == False for value in self.answers_dict.values())
+        if not is_all_wrong:
+            for team_name in self.answers_dict:
+                answer = self.answers_dict[team_name]
+                if not answer:
+                    # Mark the participant as not participating anymore     
+                    for participant in self.participants:
+                        if participant[1]==team_name:
+                            participant[3] = False  # Update participation status
+        self.round_index+=1
+        self.answers_dict={}
+        self.participations_lock.release()
+        self.answers_lock.release()
+
 
     def registerAnswer(self, team_name, answer):
         """
@@ -128,191 +133,191 @@ class Server():
         If there is a winner, return them (IP address or something identifiable),
         if no winner, return None.
         """
-        self.participations_lock.acquire()
-        winner_name= self.participants[0][1]  # Return the address of the remaining participant
-        self.participants[0][0].send(bytes("you won!", "utf-8"))
-        self.participants[0][0].close()
-        self.participations_lock.release()
-        return winner_name
+        participant=self.get_active_participants()
+        self.winner_name= participant[0][1]  # Return the address of the remaining participant
+        return self.winner_name
     
+    # def broadcast_udp(self):
+    #     """
+    #     Broadcast UDP offer messages to clients periodically.
+    #     """
+    #     with socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP) as udp_socket:
+    #         udp_socket.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
+    #         udp_socket.bind((HOSTNAME, UDP_PORT))
+    #         #TODO: validate packet size as in work instructions
+    #         message = f"""Server here! Connect to me for trivia fun!
+    #                     HOSTNAME: {HOSTNAME}
+    #                     TCP PORT: {TCP_PORT}"""
+    #         keepWaiting = True
+    #         while keepWaiting:
+    #             try:
+    #                 udp_socket.sendto(message.encode(), ('<broadcast>', UDP_PORT))
+    #                 print(f"Broadcast message sent! (time left: {self.waiting_time_left})")
+    #                 time.sleep(BROADCAST_INTERVAL)
+    #                 self.waiting_time_left  = self.waiting_time_left - 1
+                   
+    #                 if ((self.waiting_time_left <= 0) & ((len(self.participants)) <= 1)):
+    #                     keepWaiting = True
+    #                     print(f"Not Enough people are recruited ({len(self.participants)} players)")
+    #                     #self.participants=[]
+    #                     self.waiting_time_left = 10
+    #                 elif self.waiting_time_left <= 0:
+    #                     keepWaiting = False
+    #                 else:
+    #                     keepWaiting = True
+    #             except Exception as e:
+    #                 print(f"Error broadcasting: {e}")
+    #         self.finished_recruiting = True
+    #         with self.finished_recruiting_condition:
+    #             self.finished_recruiting_condition.notify_all()
+            
+           
+            # for Idan:
     def broadcast_udp(self):
         """
-        Broadcast UDP offer messages to clients periodically.
+        Broadcast UDP offer messages to clients periodically with specific packet format.
         """
         with socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP) as udp_socket:
             udp_socket.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
-            udp_socket.bind((HOSTNAME, UDP_PORT))
-            #TODO: validate packet size as in work instructions
-            message = f"""Server here! Connect to me for trivia fun!
-                        HOSTNAME: {HOSTNAME}
-                        TCP PORT: {TCP_PORT}"""
+            udp_socket.bind((self.hostname, UDP_PORT))
+
+            # Prepare the message according to the specified packet format
+            magic_cookie = 0xabcddcba
+            message_type = 0x2
+            server_name = "NBAQuiz"
+            server_name_padded = server_name.ljust(32, '\0')  # Pad the server name to be 32 characters
+
+            # Create the packet
+            print(self.tcp_server)
+            packet = struct.pack('!IB32sH', magic_cookie, message_type, server_name_padded.encode('utf-8')[2:], self.tcp_server)
+
             keepWaiting = True
             while keepWaiting:
                 try:
-                    udp_socket.sendto(message.encode(), ('<broadcast>', UDP_PORT))
+                    udp_socket.sendto(packet, ('<broadcast>', UDP_PORT))
                     print(f"Broadcast message sent! (time left: {self.waiting_time_left})")
                     time.sleep(BROADCAST_INTERVAL)
-                    self.waiting_time_left  = self.waiting_time_left - 1
-                   
-                    if ((self.waiting_time_left <= 0) & ((len(self.participants)) <= 1)):
-                        keepWaiting = True
-                        print(f"Not Enough people are recruited ({len(self.participants)} players)")
-                        #self.participants=[]
-                        self.waiting_time_left = 10
-                    elif self.waiting_time_left <= 0:
-                        keepWaiting = False
-                    else:
-                        keepWaiting = True
+                    self.waiting_time_left = self.waiting_time_left - 1
+                    keepWaiting = False if self.waiting_time_left <= 0 else True
                 except Exception as e:
                     print(f"Error broadcasting: {e}")
             self.finished_recruiting = True
             with self.finished_recruiting_condition:
                 self.finished_recruiting_condition.notify_all()
-            
-            '''
-            for Idan:
-                    def broadcast_udp(self):
-                        """
-                        Broadcast UDP offer messages to clients periodically with specific packet format.
-                        """
-                        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP) as udp_socket:
-                            udp_socket.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
-                            udp_socket.bind((HOSTNAME, UDP_PORT))
 
-                            # Prepare the message according to the specified packet format
-                            magic_cookie = 0xabcddcba
-                            message_type = 0x2
-                            server_name = "YourCreativeServerNameHere"
-                            server_name_padded = server_name.ljust(32, '\0')  # Pad the server name to be 32 characters
-                            server_port = TCP_PORT
+           
 
-                            # Create the packet
-                            packet = struct.pack('!I B 32s H', magic_cookie, message_type, server_name_padded.encode('utf-16')[2:], server_port)
+    # def handle_client(self,client_socket:socket.socket, address:str):
+    #     """
+    #     Handle a connected client.
+    #     """
+    #     try:
+    #         print(f"Connection from {address} has been established.")
+    #         client_socket.send(bytes("please send your team name", "utf-8"))
+    #         team_name = client_socket.recv(1024).decode("utf-8")
+    #         self.participations_lock.acquire()
+    #         self.participants.append([client_socket,team_name, address, True])
+    #         self.participations_lock.release()
+    #         #TODO: send "Welcome to the trivia game!" only after round starts.
+    #         while not self.game_phase:
+    #             self.game_started_condition.acquire()
+    #             self.game_started_condition.wait()
+    #             self.game_started_condition.release()
+    #         client_socket.send(bytes("Welcome to the trivia game!", "utf-8"))
+    #         while self.game_phase:
+    #             self.synchronize_round.acquire()
+    #             self.synchronize_round.wait()
+    #             self.synchronize_round.release()
+    #             if self.isStillParticipating(team_name):
+    #                 try:                     
+    #                     print(self.current_question)
+    #                     client_socket.send(self.current_question[0].encode("utf-8"))
+    #                     #TODO: uncomment line below and check if works
+    #                     #client_socket.settimeout(10)
+    #                     response = client_socket.recv(1024).decode("utf-8")
+    #                     #TODO: check answer by thread and not insert to queue and insert true to answers_dict if correct else insert false
+    #                     #TODO: Bonus print "{team_name} is correct!" or incorrect in colors
+    #                     self.registerAnswer(team_name, response)
+    #                     print(f"Response from {address}: {response}")
+    #                 except socket.timeout:
+    #                     print(f"Timeout occurred while waiting for response from {address}")
+    #                     break  # Exit the loop if a timeout occurs
+    #                 except Exception as e:
+    #                     print(f"removed {team_name}")
+    #                     break
+    #             else:
+    #                 break
+                
+    #         # Here, you would add the logic to interact with the client during the game.
+    #     except Exception as e:
+    #         print(f"Error handling client {address}: {e}")
+    #     finally:
+    #         if client_socket:
+    #             client_socket.close()
 
-                            keepWaiting = True
-                            while keepWaiting:
-                                try:
-                                    udp_socket.sendto(packet, ('<broadcast>', UDP_PORT))
-                                    print(f"Broadcast message sent! (time left: {self.waiting_time_left})")
-                                    time.sleep(BROADCAST_INTERVAL)
-                                    self.waiting_time_left = self.waiting_time_left - 1
-                                    keepWaiting = False if self.waiting_time_left <= 0 else True
-                                except Exception as e:
-                                    print(f"Error broadcasting: {e}")
-                            self.finished_recruiting = True
-                            with self.finished_recruiting_condition:
-                                self.finished_recruiting_condition.notify_all()
 
-            '''
-
-    def handle_client(self,client_socket:socket.socket, address:str):
+      #  for Idan :
+    def handle_client(self, client_socket: socket.socket, address: str):
         """
         Handle a connected client.
         """
         try:
             print(f"Connection from {address} has been established.")
-            client_socket.send(bytes("please send your team name", "utf-8"))
-            team_name = client_socket.recv(1024).decode("utf-8")
+            client_socket.send(bytes("Please send your team name", "utf-8"))
+            team_name = client_socket.recv(1024).decode("utf-8").strip()
             self.participations_lock.acquire()
-            self.participants.append([client_socket,team_name, address, True])
+            self.participants.append([client_socket, team_name, address, True])
             self.participations_lock.release()
-            #TODO: send "Welcome to the trivia game!" only after round starts.
-            while not self.game_phase:
-                self.game_started_condition.acquire()
-                self.game_started_condition.wait()
-                self.game_started_condition.release()
-            client_socket.send(bytes("Welcome to the trivia game!", "utf-8"))
+
+            # Wait until the game phase starts
+            with self.game_started_condition:
+                while not self.game_phase:
+                    self.game_started_condition.wait()
+                welcome_string="Welcome to the trivia game!"
+                active_teams = self.get_active_participants()
+                for i, team in enumerate(active_teams, 1):
+                    welcome_string += f"Player {i}: {team[1]}\n"
+                client_socket.send(bytes(welcome_string, "utf-8"))
+
             while self.game_phase:
-                self.synchronize_round.acquire()
-                self.synchronize_round.wait()
-                self.synchronize_round.release()
+                with self.synchronize_round:
+                    self.synchronize_round.wait()
+
                 if self.isStillParticipating(team_name):
-                    try:                     
+                    try:
                         print(self.current_question)
                         client_socket.send(self.current_question[0].encode("utf-8"))
-                        #TODO: uncomment line below and check if works
-                        #client_socket.settimeout(10)
-                        response = client_socket.recv(1024).decode("utf-8")
-                        #TODO: check answer by thread and not insert to queue and insert true to answers_dict if correct else insert false
-                        #TODO: Bonus print "{team_name} is correct!" or incorrect in colors
-                        self.registerAnswer(team_name, response)
+                        client_socket.settimeout(9.5)  # Set timeout for client response
+                        response = client_socket.recv(1024).decode("utf-8").strip()
+                        user_response = response == 'y'
+                        correct_answer = self.current_question[1] == user_response
+                        self.answers_lock.acquire()
+                        self.answers_dict[team_name] = correct_answer
+                        self.answers_lock.release()
+                        if correct_answer:
+                            msg = f"{team_name} is correct!"
+                            print(f"\033[92m{msg}\033[0m")  # Green text for correct answer
+                        else:
+                            msg = f"{team_name} is incorrect."
+                            print(f"\033[91m{msg}\033[0m")  # Red text for incorrect answer
+
                         print(f"Response from {address}: {response}")
                     except socket.timeout:
                         print(f"Timeout occurred while waiting for response from {address}")
-                        break  # Exit the loop if a timeout occurs
+                        self.answers_lock.acquire()
+                        self.answers_dict[team_name] = False
+                        self.answers_lock.release()
                     except Exception as e:
-                        print(f"removed {team_name}")
+                        print(f"Error during the game with {team_name}: {e}")
                         break
                 else:
                     break
-                
-            # Here, you would add the logic to interact with the client during the game.
+
         except Exception as e:
             print(f"Error handling client {address}: {e}")
-        finally:
-            if client_socket:
-                client_socket.close()
 
-        '''
-        for Idan :
-                def handle_client(self, client_socket: socket.socket, address: str):
-                    """
-                    Handle a connected client.
-                    """
-                    try:
-                        print(f"Connection from {address} has been established.")
-                        client_socket.send(bytes("Please send your team name", "utf-8"))
-                        team_name = client_socket.recv(1024).decode("utf-8").strip()
-                        self.participations_lock.acquire()
-                        self.participants.append([client_socket, team_name, address, True])
-                        self.participations_lock.release()
 
-                        # Wait until the game phase starts
-                        with self.game_started_condition:
-                            while not self.game_phase:
-                                self.game_started_condition.wait()
-                            client_socket.send(bytes("Welcome to the trivia game!", "utf-8"))
 
-                        while self.game_phase:
-                            with self.synchronize_round:
-                                self.synchronize_round.wait()
-
-                            if self.isStillParticipating(team_name):
-                                try:
-                                    print(self.current_question)
-                                    client_socket.send(self.current_question[0].encode("utf-8"))
-                                    client_socket.settimeout(10)  # Set timeout for client response
-
-                                    response = client_socket.recv(1024).decode("utf-8").strip()
-                                    correct_answer = self.current_question[1] == response
-                                    self.answers_lock.acquire()
-                                    self.answers_dict[team_name] = correct_answer
-                                    self.answers_lock.release()
-
-                                    if correct_answer:
-                                        msg = f"{team_name} is correct!"
-                                        print(f"\033[92m{msg}\033[0m")  # Green text for correct answer
-                                    else:
-                                        msg = f"{team_name} is incorrect."
-                                        print(f"\033[91m{msg}\033[0m")  # Red text for incorrect answer
-
-                                    print(f"Response from {address}: {response}")
-                                except socket.timeout:
-                                    print(f"Timeout occurred while waiting for response from {address}")
-                                    break  # Exit the loop if a timeout occurs
-                                except Exception as e:
-                                    print(f"Error during the game with {team_name}: {e}")
-                                    break
-                            else:
-                                break
-
-                    except Exception as e:
-                        print(f"Error handling client {address}: {e}")
-                    finally:
-                        if client_socket:
-                            client_socket.close()
-
-        '''
 
     def start_tcp_server(self):
         """
@@ -320,9 +325,9 @@ class Server():
         """
         try:
             with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as tcp_socket:
-                tcp_socket.bind((HOSTNAME, TCP_PORT))
+                tcp_socket.bind((self.hostname, self.tcp_server))
                 tcp_socket.listen(MAX_CONNECTIONS)
-                print(f"TCP server listening on port {TCP_PORT}...")
+                print(f"TCP server listening on port {self.tcp_server}...")
                 accepting_thread=threading.Thread(target=self.accept_participants,args=(tcp_socket,))
                 accepting_thread.start()
                 while not self.finished_recruiting:
@@ -334,10 +339,9 @@ class Server():
     def set_finished_recruiting(self,bool):
         self.finished_recruiting = bool
     def isFinished(self):
-        self.get_active_paarticipants()
-        self.participations_lock.acquire()
-        answer= len(self.participants) == 1
-        self.participations_lock.release()
+        participants=self.get_active_participants()
+        answer= len(participants) == 1
+        print(answer)
         return answer
     def accept_participants(self,tcp_socket:socket.socket):
         while not self.finished_recruiting:
@@ -350,10 +354,18 @@ class Server():
             except:
                 print("finished accepting clients" )
         
-    def get_active_paarticipants(self):
+    def get_active_participants(self):
         #TODO: remove function and usage as all players has to stay connected
         self.participations_lock.acquire()
-        self.participants= [p for p in self.participants if p[3]]
+        participants= [p for p in self.participants if p[3]]
+        self.participations_lock.release()
+        return participants
+    def start_round(self):
+        active_teams=self.get_active_participants()
+        active_team_names = " and ".join(team[1] for team in active_teams)
+        self.participations_lock.acquire() 
+        for participant in self.participants:
+            participant[0].send(bytes(f"Round {self.round_index}, played by {active_team_names}", "utf-8"))  
         self.participations_lock.release()
 
     def find_available_port(self):
@@ -387,6 +399,8 @@ if __name__ == "__main__":
         # time.sleep(105)
         #game phase
         while not server.isFinished():
+            if server.round_index!=1:
+                server.start_round()
             server.pick_random_question()
             
             server.game_started_condition.acquire()

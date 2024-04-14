@@ -1,5 +1,7 @@
 import socket
 import select
+import re
+import struct
 
 
 # Constants
@@ -47,12 +49,14 @@ def listen_for_udp_broadcast():
             ready_sockets, _, _ = select.select([udp_socket], [], [], 5)
             if ready_sockets:
                 message, server_address = udp_socket.recvfrom(BUFFER_SIZE)
-                print(f"Received offer from {server_address}.\n Message: {bytes_to_string(message)}")
-                return server_address[0], extract_tcp_port(message)
-import re
+                magic_cookie, message_type, server_name_padded, tcp_port = struct.unpack('!IB32sH', message)
+                #print(f"Received offer from {server_address}.\n Message: {bytes_to_string(message)}")
+                return server_address[0], tcp_port
+
 
 def bytes_to_string(message):
     if isinstance(message, bytes):
+        print(message)
         message = message.decode('utf-8')
     return message
 
