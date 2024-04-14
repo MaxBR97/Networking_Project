@@ -1,7 +1,6 @@
 import sys
 import os
-from inputimeout import inputimeout
-import random
+from inputimeout import inputimeout #run pip install inputimeout
 current_dir = os.path.dirname(__file__)
 parent_dir = os.path.abspath(os.path.join(current_dir, os.pardir))
 sys.path.append(parent_dir)
