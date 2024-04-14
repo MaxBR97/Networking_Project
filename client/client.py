@@ -22,7 +22,7 @@ def run_client(func,names_array):
                 received_data = tcp_socket.recv(1024)
                 received_text = received_data.decode('utf-8').strip()
                 print(received_text)
-                user_name = random.choice(names_array)+generate_random_number()
+                user_name = random.choice(names_array)#+generate_random_number()
                 tcp_socket.send(f"{user_name}\n".encode('utf-8'))
                 print(f"My team name: {user_name}")
                 # Double threading: one for listening to the socket, another for user input

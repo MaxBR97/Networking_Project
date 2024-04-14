@@ -9,23 +9,22 @@ from question import questions
 current_dir = os.path.dirname(__file__)
 parent_dir = os.path.abspath(os.path.join(current_dir, os.pardir))
 sys.path.append(parent_dir)
-import utils.network_utils 
+from utils.network_utils import *
 
 
 # Constants
-UDP_PORT = 13117
 BROADCAST_INTERVAL = 1  # Seconds between broadcasts
 MAX_CONNECTIONS = 8  # Maximum number of simultaneous client connections
 
 
-# Use a lock for thread-safe operations on shared resources
 
 
 
 class Server():
     def __init__(self):
         self.udp_port=13117
-        self.waiting_time_left=10
+        self.waiting_time_left_lock=threading.Lock()
+        self.update_waiting_time_left()
         self.synchronize_round=threading.Condition()
         self.game_phase=False
         self.current_question=0
@@ -36,13 +35,12 @@ class Server():
         self.participants = [] # element: [client_socket, address, still in game? (boolean)]
         self.answers_dict={}
         self.answers_lock=threading.Lock()
-        #TODO: Bonus add to those so we can have statictics and print/print and send those at the end of every game
         self.total_questions={}
         self.corrected_questions={}
         self.total_questions_lock=threading.Lock()
         self.corrected_questions_lock=threading.Lock()
-        self.tcp_server=utils.network_utils.find_available_port()
-        self.hostname=utils.network_utils.get_local_ip()
+        self.tcp_server=find_available_port()
+        self.hostname=get_local_ip()
         self.round_index=1
     
     def notify_synchronize_round(self):
@@ -60,9 +58,10 @@ class Server():
         Restart variables to finish the game appropriately and be ready for another game.
         Resets the game state, clears participants, and prepares for a new game.
         """
+        self.get_statictics()
         self.participations_lock.acquire()
         for participant in self.participants:
-            participant[0].send(bytes(f"Game over! winner is {self.winner_name}", "utf-8"))
+            participant[0].send(bytes(f"Game over! winner is {self.winner_name}", "utf-8"))  
             participant[0].close()
         self.participants=[]
         self.participations_lock.release()
@@ -70,13 +69,16 @@ class Server():
         self.answers_dict={}
         self.answers_lock.release()
         self.game_phase = False
-        self.waiting_time_left = 10  # Reset waiting time
+        self.update_waiting_time_left()
         self.current_question = 0  # Reset to the first question
         self.round_index=1
         self.finished_recruiting=False
         with self.synchronize_round:
             self.synchronize_round.notify_all()
-
+    def update_waiting_time_left(self,time:int=10):
+        self.waiting_time_left_lock.acquire()
+        self.waiting_time_left = time
+        self.waiting_time_left_lock.release()
     def isStillParticipating(self, team_name:str):
         """
         Return true if client_socket is still participating, meaning they didn't answer wrong so far.
@@ -110,6 +112,7 @@ class Server():
         self.answers_dict={}
         self.participations_lock.release()
         self.answers_lock.release()
+        
 
 
     def registerAnswer(self, team_name, answer):
@@ -121,6 +124,25 @@ class Server():
         self.answers_dict[team_name] = answer
         self.answers_lock.release()
 
+    def get_statictics(self):
+        most_corrected_team=max(self.corrected_questions, key=lambda k: self.corrected_questions[k])
+        most_correct_answers=self.corrected_questions[most_corrected_team]
+        best_team_percentage,best_percentage=self.find_best_percentage_key()
+        print(f"The team with most right answers is {most_corrected_team} with {most_correct_answers}")
+        print(f"The team with the best percentage is {best_team_percentage} with {best_percentage}")
+    def find_best_percentage_key(self):
+
+        best_key = None
+        best_percentage = 0
+
+        for key in self.corrected_questions:
+            if key in self.total_questions and self.total_questions[key] > 0:
+                percentage = self.corrected_questions[key] / self.total_questions[key] * 100
+                if percentage > best_percentage:
+                    best_key = key
+                    best_percentage = percentage
+
+        return best_key,best_percentage
 
     def pick_random_question(self):
         """
@@ -144,7 +166,7 @@ class Server():
         """
         with socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP) as udp_socket:
             udp_socket.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
-            udp_socket.bind((self.hostname, UDP_PORT))
+            udp_socket.bind((self.hostname, self.udp_port))
 
             # Prepare the message according to the specified packet format
             magic_cookie = 0xabcddcba
@@ -154,16 +176,19 @@ class Server():
 
             # Create the packet
             print(self.tcp_server)
-            packet = struct.pack('!IB32sH', magic_cookie, message_type, server_name_padded.encode('utf-8')[2:], self.tcp_server)
+            packet = struct.pack('!IB32sH', magic_cookie, message_type, server_name_padded.encode('utf-8'), self.tcp_server)
 
             keepWaiting = True
             while keepWaiting:
                 try:
-                    udp_socket.sendto(packet, ('<broadcast>', UDP_PORT))
+                    udp_socket.sendto(packet, ('<broadcast>', self.udp_port))
                     print(f"Broadcast message sent! (time left: {self.waiting_time_left})")
                     time.sleep(BROADCAST_INTERVAL)
-                    self.waiting_time_left = self.waiting_time_left - 1
+                    self.update_waiting_time_left(self.waiting_time_left-1)
                     keepWaiting = False if self.waiting_time_left <= 0 else True
+                    if not keepWaiting and len(self.participants)<=1:
+                        keepWaiting=True
+                        self.update_waiting_time_left()
                 except Exception as e:
                     print(f"Error broadcasting: {e}")
             self.finished_recruiting = True
@@ -194,7 +219,14 @@ class Server():
                     welcome_string += f"Player {i}: {team[1]}\n"
                 print(welcome_string)
                 client_socket.send(bytes(welcome_string, "utf-8"))
-
+                self.total_questions_lock.acquire()
+                if team_name not in self.total_questions:
+                    self.total_questions[team_name]=0
+                self.total_questions_lock.release()
+                self.corrected_questions_lock.acquire()
+                if team_name not in self.corrected_questions:
+                    self.corrected_questions[team_name]=0
+                self.corrected_questions_lock.release()
             while self.game_phase:
                 with self.synchronize_round:
                     self.synchronize_round.wait()
@@ -202,6 +234,9 @@ class Server():
                 if self.isStillParticipating(team_name):
                     try:
                         print(self.current_question)
+                        self.total_questions_lock.acquire()
+                        self.total_questions[team_name]+=1
+                        self.total_questions_lock.release()
                         client_socket.send(self.current_question[0].encode("utf-8"))
                         client_socket.settimeout(9.5)  # Set timeout for client response
                         response = client_socket.recv(1024).decode("utf-8").strip()
@@ -213,6 +248,9 @@ class Server():
                         if correct_answer:
                             msg = f"{team_name} is correct!"
                             print(f"\033[92m{msg}\033[0m")  # Green text for correct answer
+                            self.corrected_questions_lock.acquire()
+                            self.corrected_questions[team_name]+=1
+                            self.corrected_questions_lock.release()
                         else:
                             msg = f"{team_name} is incorrect."
                             print(f"\033[91m{msg}\033[0m")  # Red text for incorrect answer
@@ -257,14 +295,12 @@ class Server():
     def isFinished(self):
         participants=self.get_active_participants()
         answer= len(participants) == 1
-        print(answer)
         return answer
     def accept_participants(self,tcp_socket:socket.socket):
         while not self.finished_recruiting:
             try:
                 client_socket, address = tcp_socket.accept()
-                #TODO: make sure line below works so it finish recruite only when no one registered in 10 seconds
-                self.waiting_time_left=10
+                self.update_waiting_time_left()
                 client_thread = threading.Thread(target=self.handle_client, args=(client_socket, address))
                 client_thread.start()
             except:
@@ -285,20 +321,7 @@ class Server():
             participant[0].send(bytes(start_round_str, "utf-8"))  
         self.participations_lock.release()
 
-    def find_available_port(self):
-        base_port = 8000
-        max_port = 9000
-        self.hostname = socket.gethostname()
-        for port in range(base_port, max_port):
-            try:
-                s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-                s.bind(('localhost', port))
-                s.close()
-                return port
-            except OSError:
-                pass
-        return None  # If no port is available within the range
-            
+           
 if __name__ == "__main__":
     server=Server()
     while True:
@@ -313,8 +336,6 @@ if __name__ == "__main__":
         tcp_server_thread.join()
 
         server.game_phase = True
-        # time.sleep(105)
-        #game phase
         while not server.isFinished():
             if server.round_index!=1:
                 server.start_round()
@@ -326,5 +347,5 @@ if __name__ == "__main__":
             time.sleep(10)
             server.endRound()
         winner=server.getWinner()
-        print(f"winner is: {winner}")
+        print(f"{winner} Wins!")
         server.finishGame()
