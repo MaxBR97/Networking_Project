@@ -105,16 +105,6 @@ class Server():
         self.answers_lock.release()
         
 
-
-    def registerAnswer(self, team_name, answer):
-        """
-        Register the answer for a question given by the client,
-        and store it in a dictionary to maintain the current round's answers.
-        """
-        self.answers_lock.acquire()
-        self.answers_dict[team_name] = answer
-        self.answers_lock.release()
-
     def get_statictics(self):
         most_corrected_team=max(self.corrected_questions, key=lambda k: self.corrected_questions[k])
         most_correct_answers=self.corrected_questions[most_corrected_team]
