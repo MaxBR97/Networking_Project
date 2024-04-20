@@ -258,6 +258,8 @@ class Server():
                         print(f"Response from {address}: {response}")
                     except socket.timeout:
                         print(f"Timeout occurred while waiting for response from {address}")
+                        msg = f"{team_name} is incorrect."
+                        print(f"\033[91m{msg}\033[0m")  # Red text for incorrect answer
                         self.answers_lock.acquire()
                         self.answers_dict[team_name] = False
                         self.answers_lock.release()
