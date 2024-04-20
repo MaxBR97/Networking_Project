@@ -11,15 +11,6 @@ parent_dir = os.path.abspath(os.path.join(current_dir, os.pardir))
 sys.path.append(parent_dir)
 from utils.network_utils import *
 
-
-# Constants
-BROADCAST_INTERVAL = 1  # Seconds between broadcasts
-MAX_CONNECTIONS = 8  # Maximum number of simultaneous client connections
-
-
-
-
-
 class Server():
     def __init__(self):
         self.udp_port=13117
@@ -183,7 +174,7 @@ class Server():
                 try:
                     udp_socket.sendto(packet, ('<broadcast>', self.udp_port))
                     print(f"Broadcast message sent! (time left: {self.waiting_time_left})")
-                    time.sleep(BROADCAST_INTERVAL)
+                    time.sleep(1)
                     self.update_waiting_time_left(self.waiting_time_left-1)
                     keepWaiting = False if self.waiting_time_left <= 0 else True
                     if not keepWaiting and len(self.participants)<=1:
@@ -282,7 +273,7 @@ class Server():
         try:
             with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as tcp_socket:
                 tcp_socket.bind((self.hostname, self.tcp_server))
-                tcp_socket.listen(MAX_CONNECTIONS)
+                tcp_socket.listen(8)
                 print(f"TCP server listening on port {self.tcp_server}...")
                 accepting_thread=threading.Thread(target=self.accept_participants,args=(tcp_socket,))
                 accepting_thread.start()
