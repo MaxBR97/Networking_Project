@@ -179,7 +179,7 @@ class Server():
                     keepWaiting = False if self.waiting_time_left <= 0 else True
                     if not keepWaiting and len(self.participants)<=1:
                         if(self.participants == 1):
-                            print(f"{self.participants} is connected. Waitning for at least 1 more participant.")
+                            print(f"{self.participants} participant is connected. Waitning for at least 1 more participant.")
                         keepWaiting=True
                         self.update_waiting_time_left()
                 except Exception as e:
