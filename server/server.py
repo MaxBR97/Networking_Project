@@ -6,6 +6,7 @@ import sys
 import time
 import random
 from question import questions
+# Setup import paths
 current_dir = os.path.dirname(__file__)
 parent_dir = os.path.abspath(os.path.join(current_dir, os.pardir))
 sys.path.append(parent_dir)
@@ -13,6 +14,7 @@ from utils.network_utils import *
 
 class Server():
     def __init__(self):
+        # Initialization of server attributes
         self.udp_port=13117
         self.waiting_time_left_lock=threading.Lock()
         self.update_waiting_time_left()
@@ -86,8 +88,6 @@ class Server():
         """
         Calculate round results, expel players who answered wrong.
         """
-        #TODO: change this function to check true/false in answers dict as answers will be checked in handle_client function
-        #TODO: if all false dont do anything else change participant[3] = False only
         self.answers_lock.acquire()
         self.participations_lock.acquire()
         is_all_wrong=all(value == False for value in self.answers_dict.values())
@@ -112,17 +112,14 @@ class Server():
         print(f"The team with most right answers is {most_corrected_team} with {most_correct_answers}")
         print(f"The team with the best percentage is {best_team_percentage} with {best_percentage}")
     def find_best_percentage_key(self):
-
         best_key = None
         best_percentage = 0
-
         for key in self.corrected_questions:
             if key in self.total_questions and self.total_questions[key] > 0:
                 percentage = self.corrected_questions[key] / self.total_questions[key] * 100
                 if percentage > best_percentage:
                     best_key = key
                     best_percentage = percentage
-
         return best_key,best_percentage
 
     def pick_random_question(self):
@@ -158,7 +155,6 @@ class Server():
             # Create the packet
             print(self.tcp_server)
             packet = struct.pack('!IB32sH', magic_cookie, message_type, server_name_padded.encode('utf-8'), self.tcp_server)
-
             keepWaiting = True
             while keepWaiting:
                 try:
@@ -251,11 +247,8 @@ class Server():
                         break
                 else:
                     break
-
         except Exception as e:
             print(f"Error handling client {address}: {e}")
-
-
 
 
     def start_tcp_server(self):
@@ -275,12 +268,15 @@ class Server():
                 tcp_socket.close()          
         except Exception as e:
             print(e)
+            
     def set_finished_recruiting(self,bool):
         self.finished_recruiting = bool
+        
     def isFinished(self):
         participants=self.get_active_participants()
         answer= len(participants) == 1
         return answer
+        
     def accept_participants(self,tcp_socket:socket.socket):
         while not self.finished_recruiting:
             try:
@@ -296,6 +292,7 @@ class Server():
         participants= [p for p in self.participants if p[3]]
         self.participations_lock.release()
         return participants
+        
     def start_round(self):
         active_teams=self.get_active_participants()
         active_team_names = " and ".join(team[1] for team in active_teams)
@@ -312,14 +309,12 @@ if __name__ == "__main__":
     while True:
         udp_thread = threading.Thread(target=server.broadcast_udp)
         udp_thread.start()
-
         tcp_server_thread = threading.Thread(target=server.start_tcp_server)
         tcp_server_thread.start()
         udp_thread.join()
         timer = threading.Timer(0.2, server.set_finished_recruiting,args=(True,))
         timer.start()
         tcp_server_thread.join()
-
         server.game_phase = True
         while not server.isFinished():
             if server.round_index!=1:
