@@ -1,11 +1,15 @@
 import sys
 import os
-from inputimeout import inputimeout #run pip install inputimeout
+try:
+    from inputimeout import inputimeout
+except ImportError:
+    print("inputimeout is not installed. Use 'pip install inputimeout' to install it.")
+    sys.exit(1)
 current_dir = os.path.dirname(__file__)
 parent_dir = os.path.abspath(os.path.join(current_dir, os.pardir))
 sys.path.append(parent_dir)
 from client.client import run_client
-# Fill with names
+# List of names to be used in the client
 names_array = ["Roee", "Maxim", "Idan", "Yossi", "Gal", "Lebron","Kobe", "Luka", "Magic"]
 
 def handle_user_input(tcp_socket):   
@@ -24,4 +28,4 @@ def handle_user_input(tcp_socket):
 
 
 if __name__ == "__main__":
-    run_client(handle_user_input,names_array)
+    run_client(handle_user_input,names_array)   # Start the client with the specified handler and names
